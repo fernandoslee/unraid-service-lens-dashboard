@@ -1,0 +1,16 @@
+services:
+  services-indexer:
+    build: .
+    container_name: services-indexer
+    ports:
+      - "8080:8080"
+    volumes:
+      - services-indexer-data:/app/data
+    environment:
+      - UNRAID_HOST=${UNRAID_HOST:-}
+      - UNRAID_API_KEY=${UNRAID_API_KEY:-}
+      - UNRAID_VERIFY_SSL=${UNRAID_VERIFY_SSL:-false}
+    restart: unless-stopped
+
+volumes:
+  services-indexer-data:

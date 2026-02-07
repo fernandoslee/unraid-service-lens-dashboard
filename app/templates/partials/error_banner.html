@@ -1,0 +1,6 @@
+{% if error %}
+<article class="error-banner">
+    <small>Unable to reach Unraid server. Showing last known data.</small>
+    <details><summary>Details</summary><p>{{ error }}</p></details>
+</article>
+{% endif %}

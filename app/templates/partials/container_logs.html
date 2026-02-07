@@ -1,0 +1,9 @@
+{% if error %}
+<div class="log-line error-text">Error: {{ error }}</div>
+{% elif lines %}
+{% for line in lines %}
+<div class="log-line"><span class="log-ts">{{ line.timestamp }}</span> {{ line.message }}</div>
+{% endfor %}
+{% else %}
+<div class="log-line dimmed">No log lines available.</div>
+{% endif %}

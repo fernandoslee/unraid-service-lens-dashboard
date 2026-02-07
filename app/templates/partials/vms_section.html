@@ -1,0 +1,7 @@
+<div class="services-grid">
+    {% for vm in vms %}
+    {% include "partials/vm_card.html" %}
+    {% else %}
+    <p>No virtual machines found.</p>
+    {% endfor %}
+</div>

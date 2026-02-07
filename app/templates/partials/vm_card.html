@@ -1,0 +1,13 @@
+<article class="service-card">
+    <header>
+        <div class="service-card-header">
+            <img src="/static/img/default-vm.svg" alt="" class="service-icon">
+            <div>
+                <strong>{{ vm.name }}</strong>
+            </div>
+        </div>
+    </header>
+    <div class="service-card-body">
+        <span class="status-badge status-{{ vm.state_lower }}">{{ vm.state }}</span>
+    </div>
+</article>

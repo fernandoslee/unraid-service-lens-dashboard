@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block nav_icon %}<a href="/" class="nav-icon" title="Home">&#8962;</a>{% endblock %}
+
+{% block content %}
+<article>
+    <header><h3>Server Connection</h3></header>
+    {% if success %}
+    <p style="color: #22c55e;">{{ success }}</p>
+    {% endif %}
+    {% if error %}
+    <p class="error-text">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="/settings">
+        <label for="host">Unraid Server Address
+            <input type="text" id="host" name="host" value="{{ host }}"
+                   placeholder="tower.local or 192.168.1.100" required>
+        </label>
+        <label for="api_key">API Key
+            {% if masked_key %}
+            <input type="password" id="api_key" name="api_key"
+                   placeholder="{{ masked_key }}"
+                   aria-describedby="key-help">
+            <small id="key-help" class="dimmed">Leave blank to keep the current key.</small>
+            {% else %}
+            <input type="password" id="api_key" name="api_key"
+                   placeholder="Your Unraid API key" required>
+            {% endif %}
+        </label>
+        <label>
+            <input type="checkbox" name="verify_ssl" role="switch"
+                   {% if verify_ssl %}checked{% endif %}>
+            Verify SSL certificate
+        </label>
+        <button type="submit">Test Connection & Save</button>
+    </form>
+</article>
+
+<article>
+    <header><h3>Display</h3></header>
+    <div class="settings-row">
+        <label for="setting-layout">Default layout</label>
+        <select id="setting-layout" onchange="saveSetting('defaultView', this.value)">
+            <option value="cards">Cards</option>
+            <option value="compact">Compact</option>
+        </select>
+    </div>
+    <div class="settings-row">
+        <label for="setting-theme">Theme</label>
+        <select id="setting-theme" onchange="applyTheme(this.value)">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">Follow system</option>
+        </select>
+    </div>
+    <hr>
+    <p class="dimmed" style="margin-bottom:0.5rem"><small>Sections shown on the dashboard</small></p>
+    <div class="settings-row">
+        <label for="show-containers">Containers</label>
+        <input type="checkbox" id="show-containers" role="switch"
+               onchange="saveSetting('showContainers', this.checked)">
+    </div>
+    <div class="settings-row">
+        <label for="show-vms">Virtual Machines</label>
+        <input type="checkbox" id="show-vms" role="switch"
+               onchange="saveSetting('showVMs', this.checked)">
+    </div>
+    <div class="settings-row">
+        <label for="show-plugins">Plugins</label>
+        <input type="checkbox" id="show-plugins" role="switch"
+               onchange="saveSetting('showPlugins', this.checked)">
+    </div>
+</article>
+
+<script>
+function saveSetting(key, value) {
+    localStorage.setItem(key, value);
+}
+
+function applyTheme(theme) {
+    localStorage.setItem('theme', theme);
+    var t = theme;
+    if (t === 'system') {
+        t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+}
+
+function getSectionPref(key) {
+    var raw = localStorage.getItem(key);
+    return raw !== 'false'; // shown by default
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var layout = localStorage.getItem('defaultView') || 'cards';
+    document.getElementById('setting-layout').value = layout;
+
+    var theme = localStorage.getItem('theme') || 'dark';
+    document.getElementById('setting-theme').value = theme;
+
+    document.getElementById('show-containers').checked = getSectionPref('showContainers');
+    document.getElementById('show-vms').checked = getSectionPref('showVMs');
+    document.getElementById('show-plugins').checked = getSectionPref('showPlugins');
+});
+</script>
+{% endblock %}

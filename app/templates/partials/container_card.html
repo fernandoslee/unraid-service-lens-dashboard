@@ -1,0 +1,58 @@
+<article class="service-card">
+    <header>
+        <div class="service-card-header">
+            {% if container.icon_url %}
+            <img src="{{ container.icon_url }}" alt="" class="service-icon"
+                 onerror="this.src='/static/img/default-container.svg'">
+            {% else %}
+            <img src="/static/img/default-container.svg" alt="" class="service-icon">
+            {% endif %}
+            <div>
+                {% if container.web_ui_url %}
+                <a href="{{ container.web_ui_url }}" target="_blank" rel="noopener" class="container-name-link"><strong>{{ container.name }}</strong></a>
+                {% else %}
+                <strong>{{ container.name }}</strong>
+                {% endif %}
+                <br>
+                <small class="dimmed">{{ container.image | truncate(40) }}</small>
+            </div>
+        </div>
+    </header>
+    <div class="service-card-body">
+        <span class="status-badge status-{{ container.state_lower }}">{{ container.display_state }}</span>
+        <small class="dimmed">{{ container.display_status }}</small>
+    </div>
+    <footer>
+        <span class="action-icons">
+            <span class="action-icon action-logs" title="Logs"
+                  onclick="showLogs('{{ container.id | urlencode }}', '{{ container.name | e }}')">&#9776;</span>
+            {% if container.web_ui_url %}
+            <a href="{{ container.web_ui_url }}" target="_blank" rel="noopener"
+               class="action-icon action-link" title="Open web UI">&#8599;</a>
+            {% endif %}
+            {% if container.is_running %}
+            <span class="action-icon action-stop" title="Stop"
+                  hx-post="/api/containers/stop?id={{ container.id | urlencode }}&view=cards"
+                  hx-target="#containers-section"
+                  hx-swap="innerHTML"
+                  hx-confirm="Stop {{ container.name }}?">&#9632;</span>
+            <span class="action-icon action-restart" title="Restart"
+                  hx-post="/api/containers/restart?id={{ container.id | urlencode }}&view=cards"
+                  hx-target="#containers-section"
+                  hx-swap="innerHTML"
+                  hx-confirm="Restart {{ container.name }}?">&#8635;</span>
+            {% elif container.is_restarting %}
+            <span class="action-icon action-stop" title="Stop"
+                  hx-post="/api/containers/stop?id={{ container.id | urlencode }}&view=cards"
+                  hx-target="#containers-section"
+                  hx-swap="innerHTML"
+                  hx-confirm="Stop {{ container.name }}?">&#9632;</span>
+            {% else %}
+            <span class="action-icon action-start" title="Start"
+                  hx-post="/api/containers/start?id={{ container.id | urlencode }}&view=cards"
+                  hx-target="#containers-section"
+                  hx-swap="innerHTML">&#9654;</span>
+            {% endif %}
+        </span>
+    </footer>
+</article>

@@ -1,0 +1,22 @@
+<table class="compact-table" role="grid">
+    <thead>
+        <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for vm in vms %}
+        <tr>
+            <td class="compact-icon-cell">
+                <img src="/static/img/default-vm.svg" alt="" class="compact-icon">
+            </td>
+            <td><strong>{{ vm.name }}</strong></td>
+            <td><span class="status-badge status-{{ vm.state_lower }}">{{ vm.state }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3">No virtual machines found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>

@@ -1,0 +1,7 @@
+<div class="services-grid">
+    {% for container in containers %}
+    {% include "partials/container_card.html" %}
+    {% else %}
+    <p>No Docker containers found.</p>
+    {% endfor %}
+</div>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Dashboard{% endblock %} - Services Indexer</title>
+    <script>
+    (function(){
+        var t = localStorage.getItem('theme') || 'dark';
+        if (t === 'system') {
+            t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="/static/js/htmx.min.js"></script>
+</head>
+<body>
+    <header class="container">
+        <nav>
+            <ul>
+                <li><strong>Services Indexer</strong></li>
+            </ul>
+            <ul>
+                <li>
+                    <span id="connection-status"
+                          hx-get="/api/health"
+                          hx-trigger="every 30s"
+                          hx-swap="innerHTML">
+                        {% block header_status %}{% endblock %}
+                    </span>
+                </li>
+                <li>{% block nav_icon %}<a href="/settings" class="nav-icon" title="Settings">&#9881;</a>{% endblock %}</li>
+            </ul>
+        </nav>
+    </header>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

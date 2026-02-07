@@ -1,0 +1,20 @@
+{% if plugins %}
+<table>
+    <thead>
+        <tr>
+            <th>Plugin</th>
+            <th>Version</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for plugin in plugins %}
+        <tr>
+            <td>{{ plugin.display_name }}</td>
+            <td><small>{{ plugin.version }}</small></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No plugins found.</p>
+{% endif %}

@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block header_status %}
+{% include "partials/connection_status.html" %}
+{% endblock %}
+
+{% block content %}
+{% if error %}
+{% include "partials/error_banner.html" %}
+{% endif %}
+
+<section id="system-section"
+         hx-get="/api/system"
+         hx-trigger="every 30s"
+         hx-swap="innerHTML">
+    {% include "partials/system_info.html" %}
+</section>
+
+<div id="containers-wrap">
+    <div class="section-header">
+        <h3>Containers
+            {% set running = containers | selectattr('is_running') | list | length %}
+            <small class="dimmed">({{ running }}/{{ containers | length }})</small>
+        </h3>
+        <span class="section-controls">
+            {% if compact %}
+            <span class="col-dropdown-wrap">
+                <span class="btn-toggle" onclick="toggleColDropdown(event)" title="Columns">&#9776;&#9662;</span>
+                <div class="col-dropdown" id="col-dropdown" style="display:none">
+                    <div class="col-dropdown-title">Columns</div>
+                    <label class="col-dropdown-item" draggable="true" data-col="status">
+                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <input type="checkbox" checked onchange="toggleColumn('status', this.checked)">
+                        <span>Status</span>
+                    </label>
+                    <label class="col-dropdown-item" draggable="true" data-col="address">
+                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <input type="checkbox" checked onchange="toggleColumn('address', this.checked)">
+                        <span>Address</span>
+                    </label>
+                    <label class="col-dropdown-item" draggable="true" data-col="ports">
+                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <input type="checkbox" checked onchange="toggleColumn('ports', this.checked)">
+                        <span>Ports</span>
+                    </label>
+                    <label class="col-dropdown-item" draggable="true" data-col="uptime">
+                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <input type="checkbox" checked onchange="toggleColumn('uptime', this.checked)">
+                        <span>Uptime</span>
+                    </label>
+                    <label class="col-dropdown-item" draggable="true" data-col="image">
+                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <input type="checkbox" checked onchange="toggleColumn('image', this.checked)">
+                        <span>Image</span>
+                    </label>
+                </div>
+            </span>
+            {% endif %}
+            <span class="view-toggle">
+                <span class="btn-toggle {% if not compact %}active{% endif %}"
+                      onclick="setView('cards')" title="Card view">&#9638;</span>
+                <span class="btn-toggle {% if compact %}active{% endif %}"
+                      onclick="setView('compact')" title="Compact view">&#9776;</span>
+            </span>
+        </span>
+    </div>
+    <section>
+        <div id="containers-section"
+             hx-get="/api/containers?view={{ 'compact' if compact else 'cards' }}"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+            {% if compact %}
+            {% include "partials/containers_compact.html" %}
+            {% else %}
+            {% include "partials/containers_section.html" %}
+            {% endif %}
+        </div>
+    </section>
+</div>
+
+<div id="vms-wrap">
+    <div class="section-header">
+        <h3>Virtual Machines
+            {% set running_vms = vms | selectattr('is_running') | list | length %}
+            <small class="dimmed">({{ running_vms }}/{{ vms | length }})</small>
+        </h3>
+    </div>
+    <section>
+        <div id="vms-section"
+             hx-get="/api/vms?view={{ 'compact' if compact else 'cards' }}"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+            {% if compact %}
+            {% include "partials/vms_compact.html" %}
+            {% else %}
+            {% include "partials/vms_section.html" %}
+            {% endif %}
+        </div>
+    </section>
+</div>
+
+<div id="plugins-wrap">
+    <section>
+        <h3>Plugins</h3>
+        <div id="plugins-section"
+             hx-get="/api/plugins"
+             hx-trigger="every 30s"
+             hx-swap="innerHTML">
+            {% include "partials/plugin_list.html" %}
+        </div>
+    </section>
+</div>
+
+<dialog id="logs-modal">
+    <article class="logs-modal-content">
+        <header>
+            <span id="logs-modal-title">Container Logs</span>
+            <span class="action-icon" onclick="document.getElementById('logs-modal').close()" style="margin-left:auto;cursor:pointer">&times;</span>
+        </header>
+        <div id="logs-modal-body" class="logs-body">
+            <p class="dimmed">Loading...</p>
+        </div>
+    </article>
+</dialog>
+
+<script>
+function showLogs(containerId, containerName) {
+    const modal = document.getElementById('logs-modal');
+    document.getElementById('logs-modal-title').textContent = containerName + ' — Logs';
+    document.getElementById('logs-modal-body').innerHTML = '<p class="dimmed">Loading...</p>';
+    modal.showModal();
+    htmx.ajax('GET', '/api/containers/logs?id=' + containerId + '&tail=200', {
+        target: '#logs-modal-body',
+        swap: 'innerHTML'
+    }).then(function() {
+        var body = document.getElementById('logs-modal-body');
+        body.scrollTop = body.scrollHeight;
+    });
+}
+
+function setView(mode) {
+    const url = new URL(window.location);
+    url.searchParams.set('view', mode);
+    window.location.href = url.toString();
+}
+
+function toggleSystemDetails() {
+    const el = document.getElementById('system-details');
+    const btn = document.querySelector('.system-bar-toggle');
+    if (el.style.display === 'none') {
+        el.style.display = 'flex';
+        btn.innerHTML = '&#9652;';
+        localStorage.setItem('systemDetailsOpen', '1');
+    } else {
+        el.style.display = 'none';
+        btn.innerHTML = '&#9662;';
+        localStorage.setItem('systemDetailsOpen', '0');
+    }
+}
+
+/* Column visibility & order */
+const COL_STORAGE_KEY = 'compactColumns';
+const DEFAULT_COLS = {status: true, address: true, ports: true, uptime: true, image: true};
+const DEFAULT_ORDER = ['status', 'address', 'ports', 'uptime', 'image'];
+
+function getColPrefs() {
+    try {
+        const raw = localStorage.getItem(COL_STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return {visible: {...DEFAULT_COLS}, order: [...DEFAULT_ORDER]};
+}
+
+function saveColPrefs(prefs) {
+    localStorage.setItem(COL_STORAGE_KEY, JSON.stringify(prefs));
+}
+
+function toggleColumn(col, show) {
+    const prefs = getColPrefs();
+    prefs.visible[col] = show;
+    saveColPrefs(prefs);
+    applyColumnPrefs();
+}
+
+function applyColumnPrefs() {
+    const prefs = getColPrefs();
+    // Apply visibility
+    for (const [col, vis] of Object.entries(prefs.visible)) {
+        const cells = document.querySelectorAll('#compact-containers [data-col="' + col + '"]');
+        cells.forEach(c => c.style.display = vis ? '' : 'none');
+    }
+    // Sync checkboxes in dropdown
+    const dropdown = document.getElementById('col-dropdown');
+    if (dropdown) {
+        dropdown.querySelectorAll('.col-dropdown-item').forEach(item => {
+            const col = item.dataset.col;
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb && prefs.visible[col] !== undefined) {
+                cb.checked = prefs.visible[col];
+            }
+        });
+    }
+    // Apply column order by reordering table columns
+    reorderColumns(prefs.order);
+    // Reorder dropdown items
+    reorderDropdownItems(prefs.order);
+}
+
+function reorderColumns(order) {
+    const table = document.getElementById('compact-containers');
+    if (!table) return;
+
+    const fixedCols = ['_icon', 'name']; // always first
+    const fullOrder = [...fixedCols, ...order, '_actions'];
+
+    // Map col names to original indices
+    const headerRow = table.querySelector('thead tr');
+    if (!headerRow) return;
+    const ths = Array.from(headerRow.children);
+    const colIndexMap = {};
+    ths.forEach((th, i) => {
+        const col = th.dataset.col;
+        if (col) colIndexMap[col] = i;
+        else if (th.classList.contains('compact-icon-cell')) colIndexMap['_icon'] = i;
+        else if (th.classList.contains('actions-cell')) colIndexMap['_actions'] = i;
+    });
+
+    const newOrder = fullOrder.map(c => colIndexMap[c]).filter(i => i !== undefined);
+
+    // Reorder header
+    const thClones = ths.map(th => th.cloneNode(true));
+    newOrder.forEach((origIdx, newIdx) => {
+        headerRow.children[newIdx].replaceWith(thClones[origIdx].cloneNode(true));
+    });
+
+    // Reorder body rows
+    table.querySelectorAll('tbody tr').forEach(row => {
+        const tds = Array.from(row.children);
+        if (tds.length !== ths.length) return;
+        const tdClones = tds.map(td => td.cloneNode(true));
+        newOrder.forEach((origIdx, newIdx) => {
+            row.children[newIdx].replaceWith(tdClones[origIdx].cloneNode(true));
+        });
+    });
+}
+
+function reorderDropdownItems(order) {
+    const dropdown = document.getElementById('col-dropdown');
+    if (!dropdown) return;
+    const items = Array.from(dropdown.querySelectorAll('.col-dropdown-item'));
+    const itemMap = {};
+    items.forEach(item => { itemMap[item.dataset.col] = item; });
+    order.forEach(col => {
+        if (itemMap[col]) dropdown.appendChild(itemMap[col]);
+    });
+}
+
+function toggleColDropdown(e) {
+    e.stopPropagation();
+    const dd = document.getElementById('col-dropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+/* Drag & drop reorder */
+let dragItem = null;
+document.addEventListener('dragstart', function(e) {
+    const item = e.target.closest('.col-dropdown-item');
+    if (!item) return;
+    dragItem = item;
+    e.dataTransfer.effectAllowed = 'move';
+    item.classList.add('dragging');
+});
+document.addEventListener('dragover', function(e) {
+    const item = e.target.closest('.col-dropdown-item');
+    if (!item || item === dragItem) return;
+    e.preventDefault();
+    const dd = document.getElementById('col-dropdown');
+    const items = Array.from(dd.querySelectorAll('.col-dropdown-item'));
+    const dragIdx = items.indexOf(dragItem);
+    const overIdx = items.indexOf(item);
+    if (dragIdx < overIdx) item.after(dragItem);
+    else item.before(dragItem);
+});
+document.addEventListener('dragend', function(e) {
+    if (dragItem) {
+        dragItem.classList.remove('dragging');
+        dragItem = null;
+        // Save new order
+        const dd = document.getElementById('col-dropdown');
+        if (dd) {
+            const prefs = getColPrefs();
+            prefs.order = Array.from(dd.querySelectorAll('.col-dropdown-item')).map(i => i.dataset.col);
+            saveColPrefs(prefs);
+            applyColumnPrefs();
+        }
+    }
+});
+
+/* Copy text to clipboard */
+function copyText(btn) {
+    const text = btn.previousElementSibling.textContent.trim();
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = '\u2713';
+        setTimeout(function() { btn.innerHTML = '&#9112;'; }, 1000);
+    });
+}
+
+/* Close dropdown when clicking outside */
+document.addEventListener('click', function(e) {
+    const dd = document.getElementById('col-dropdown');
+    if (dd && dd.style.display !== 'none' && !e.target.closest('.col-dropdown-wrap')) {
+        dd.style.display = 'none';
+    }
+});
+
+/* Section visibility */
+function applySectionVisibility() {
+    var sections = [
+        {key: 'showContainers', wrap: 'containers-wrap', poll: 'containers-section'},
+        {key: 'showVMs', wrap: 'vms-wrap', poll: 'vms-section'},
+        {key: 'showPlugins', wrap: 'plugins-wrap', poll: 'plugins-section'},
+    ];
+    sections.forEach(function(s) {
+        var show = localStorage.getItem(s.key) !== 'false';
+        var el = document.getElementById(s.wrap);
+        if (el) el.style.display = show ? '' : 'none';
+        // Disable/enable HTMX polling
+        var poll = document.getElementById(s.poll);
+        if (poll) {
+            if (show) {
+                poll.setAttribute('hx-trigger', 'every 30s');
+            } else {
+                poll.removeAttribute('hx-trigger');
+            }
+        }
+    });
+}
+
+/* Init */
+document.addEventListener('DOMContentLoaded', function() {
+    // Redirect to default view if none specified
+    const url = new URL(window.location);
+    if (!url.searchParams.has('view')) {
+        const def = localStorage.getItem('defaultView') || 'cards';
+        url.searchParams.set('view', def);
+        window.location.replace(url.toString());
+        return;
+    }
+
+    if (localStorage.getItem('systemDetailsOpen') === '1') {
+        const el = document.getElementById('system-details');
+        const btn = document.querySelector('.system-bar-toggle');
+        if (el) { el.style.display = 'flex'; }
+        if (btn) { btn.innerHTML = '&#9652;'; }
+    }
+    applySectionVisibility();
+    applyColumnPrefs();
+});
+
+/* Re-apply after HTMX swaps */
+document.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target.id === 'containers-section') {
+        applyColumnPrefs();
+    }
+});
+</script>
+{% endblock %}
