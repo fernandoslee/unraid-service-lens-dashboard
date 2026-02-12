@@ -6,52 +6,60 @@
 {% include "partials/connection_status.html" %}
 {% endblock %}
 
+{% block top_bar_stats %}
+<span id="system-section"
+      hx-get="/api/system"
+      hx-trigger="every 30s"
+      hx-swap="innerHTML">
+    {% include "partials/system_info.html" %}
+</span>
+{% endblock %}
+
 {% block content %}
 {% if error %}
 {% include "partials/error_banner.html" %}
 {% endif %}
 
-<section id="system-section"
-         hx-get="/api/system"
-         hx-trigger="every 30s"
-         hx-swap="innerHTML">
-    {% include "partials/system_info.html" %}
-</section>
-
 <div id="containers-wrap">
     <div class="section-header">
-        <h3>Containers
+        <h3 class="section-collapse-toggle" onclick="toggleCollapse('containers')">
+            <svg class="icon section-chevron" id="chevron-containers"><use href="#i-chevron-down"/></svg>
+            Containers
             {% set running = containers | selectattr('is_running') | list | length %}
             <small class="dimmed">({{ running }}/{{ containers | length }})</small>
         </h3>
         <span class="section-controls">
+            <select class="filter-select" id="filter-containers" onchange="setFilter('containers', this.value)">
+                <option value="all">All</option>
+                <option value="running">Running</option>
+            </select>
             {% if compact %}
             <span class="col-dropdown-wrap">
-                <span class="btn-toggle" onclick="toggleColDropdown(event)" title="Columns">&#9776;&#9662;</span>
+                <span class="btn-toggle" onclick="toggleColDropdown(event)" title="Columns"><svg class="icon"><use href="#i-columns"/></svg></span>
                 <div class="col-dropdown" id="col-dropdown" style="display:none">
                     <div class="col-dropdown-title">Columns</div>
                     <label class="col-dropdown-item" draggable="true" data-col="status">
-                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <span class="drag-handle"><svg class="icon"><use href="#i-grip"/></svg></span>
                         <input type="checkbox" checked onchange="toggleColumn('status', this.checked)">
                         <span>Status</span>
                     </label>
                     <label class="col-dropdown-item" draggable="true" data-col="address">
-                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <span class="drag-handle"><svg class="icon"><use href="#i-grip"/></svg></span>
                         <input type="checkbox" checked onchange="toggleColumn('address', this.checked)">
                         <span>Address</span>
                     </label>
                     <label class="col-dropdown-item" draggable="true" data-col="ports">
-                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <span class="drag-handle"><svg class="icon"><use href="#i-grip"/></svg></span>
                         <input type="checkbox" checked onchange="toggleColumn('ports', this.checked)">
                         <span>Ports</span>
                     </label>
                     <label class="col-dropdown-item" draggable="true" data-col="uptime">
-                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <span class="drag-handle"><svg class="icon"><use href="#i-grip"/></svg></span>
                         <input type="checkbox" checked onchange="toggleColumn('uptime', this.checked)">
                         <span>Uptime</span>
                     </label>
                     <label class="col-dropdown-item" draggable="true" data-col="image">
-                        <span class="drag-handle">&#8942;&#8942;</span>
+                        <span class="drag-handle"><svg class="icon"><use href="#i-grip"/></svg></span>
                         <input type="checkbox" checked onchange="toggleColumn('image', this.checked)">
                         <span>Image</span>
                     </label>
@@ -60,13 +68,13 @@
             {% endif %}
             <span class="view-toggle">
                 <span class="btn-toggle {% if not compact %}active{% endif %}"
-                      onclick="setView('cards')" title="Card view">&#9638;</span>
+                      onclick="setView('cards')" title="Card view"><svg class="icon"><use href="#i-grid"/></svg></span>
                 <span class="btn-toggle {% if compact %}active{% endif %}"
-                      onclick="setView('compact')" title="Compact view">&#9776;</span>
+                      onclick="setView('compact')" title="Compact view"><svg class="icon"><use href="#i-list"/></svg></span>
             </span>
         </span>
     </div>
-    <section>
+    <section id="containers-body">
         <div id="containers-section"
              hx-get="/api/containers?view={{ 'compact' if compact else 'cards' }}"
              hx-trigger="every 30s"
@@ -82,12 +90,20 @@
 
 <div id="vms-wrap">
     <div class="section-header">
-        <h3>Virtual Machines
+        <h3 class="section-collapse-toggle" onclick="toggleCollapse('vms')">
+            <svg class="icon section-chevron" id="chevron-vms"><use href="#i-chevron-down"/></svg>
+            Virtual Machines
             {% set running_vms = vms | selectattr('is_running') | list | length %}
             <small class="dimmed">({{ running_vms }}/{{ vms | length }})</small>
         </h3>
+        <span class="section-controls">
+            <select class="filter-select" id="filter-vms" onchange="setFilter('vms', this.value)">
+                <option value="all">All</option>
+                <option value="running">Running</option>
+            </select>
+        </span>
     </div>
-    <section>
+    <section id="vms-body">
         <div id="vms-section"
              hx-get="/api/vms?view={{ 'compact' if compact else 'cards' }}"
              hx-trigger="every 30s"
@@ -101,23 +117,11 @@
     </section>
 </div>
 
-<div id="plugins-wrap">
-    <section>
-        <h3>Plugins</h3>
-        <div id="plugins-section"
-             hx-get="/api/plugins"
-             hx-trigger="every 30s"
-             hx-swap="innerHTML">
-            {% include "partials/plugin_list.html" %}
-        </div>
-    </section>
-</div>
-
 <dialog id="logs-modal">
     <article class="logs-modal-content">
         <header>
             <span id="logs-modal-title">Container Logs</span>
-            <span class="action-icon" onclick="document.getElementById('logs-modal').close()" style="margin-left:auto;cursor:pointer">&times;</span>
+            <span class="action-icon" onclick="document.getElementById('logs-modal').close()" style="margin-left:auto;cursor:pointer"><svg class="icon"><use href="#i-x"/></svg></span>
         </header>
         <div id="logs-modal-body" class="logs-body">
             <p class="dimmed">Loading...</p>
@@ -146,18 +150,53 @@ function setView(mode) {
     window.location.href = url.toString();
 }
 
-function toggleSystemDetails() {
-    const el = document.getElementById('system-details');
-    const btn = document.querySelector('.system-bar-toggle');
-    if (el.style.display === 'none') {
-        el.style.display = 'flex';
-        btn.innerHTML = '&#9652;';
-        localStorage.setItem('systemDetailsOpen', '1');
-    } else {
-        el.style.display = 'none';
-        btn.innerHTML = '&#9662;';
-        localStorage.setItem('systemDetailsOpen', '0');
-    }
+/* --- Section collapse --- */
+function toggleCollapse(section) {
+    var body = document.getElementById(section + '-body');
+    var chevron = document.getElementById('chevron-' + section);
+    if (!body) return;
+    var collapsed = body.style.display === 'none';
+    body.style.display = collapsed ? '' : 'none';
+    if (chevron) chevron.classList.toggle('collapsed', !collapsed);
+    localStorage.setItem(section + 'Collapsed', collapsed ? '0' : '1');
+}
+
+function applyCollapseState() {
+    ['containers', 'vms'].forEach(function(s) {
+        if (localStorage.getItem(s + 'Collapsed') === '1') {
+            var body = document.getElementById(s + '-body');
+            var chevron = document.getElementById('chevron-' + s);
+            if (body) body.style.display = 'none';
+            if (chevron) chevron.classList.add('collapsed');
+        }
+    });
+}
+
+/* --- Filter (All / Running) --- */
+function setFilter(section, value) {
+    localStorage.setItem(section + 'Filter', value);
+    applyFilter(section);
+}
+
+function applyFilter(section) {
+    var filter = localStorage.getItem(section + 'Filter') || 'all';
+    var sectionEl = document.getElementById(section + '-section');
+    if (!sectionEl) return;
+    // Filter table rows
+    sectionEl.querySelectorAll('tr[data-running]').forEach(function(row) {
+        row.style.display = (filter === 'running' && row.dataset.running !== 'true') ? 'none' : '';
+    });
+    // Filter cards
+    sectionEl.querySelectorAll('article[data-running]').forEach(function(card) {
+        card.style.display = (filter === 'running' && card.dataset.running !== 'true') ? 'none' : '';
+    });
+    // Sync dropdown
+    var sel = document.getElementById('filter-' + section);
+    if (sel) sel.value = filter;
+}
+
+function applyAllFilters() {
+    ['containers', 'vms'].forEach(applyFilter);
 }
 
 /* Column visibility & order */
@@ -302,8 +341,8 @@ document.addEventListener('dragend', function(e) {
 function copyText(btn) {
     const text = btn.previousElementSibling.textContent.trim();
     navigator.clipboard.writeText(text).then(function() {
-        btn.textContent = '\u2713';
-        setTimeout(function() { btn.innerHTML = '&#9112;'; }, 1000);
+        btn.innerHTML = '<svg class="icon"><use href="#i-check"/></svg>';
+        setTimeout(function() { btn.innerHTML = '<svg class="icon"><use href="#i-copy"/></svg>'; }, 1000);
     });
 }
 
@@ -320,7 +359,6 @@ function applySectionVisibility() {
     var sections = [
         {key: 'showContainers', wrap: 'containers-wrap', poll: 'containers-section'},
         {key: 'showVMs', wrap: 'vms-wrap', poll: 'vms-section'},
-        {key: 'showPlugins', wrap: 'plugins-wrap', poll: 'plugins-section'},
     ];
     sections.forEach(function(s) {
         var show = localStorage.getItem(s.key) !== 'false';
@@ -349,20 +387,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    if (localStorage.getItem('systemDetailsOpen') === '1') {
-        const el = document.getElementById('system-details');
-        const btn = document.querySelector('.system-bar-toggle');
-        if (el) { el.style.display = 'flex'; }
-        if (btn) { btn.innerHTML = '&#9652;'; }
-    }
     applySectionVisibility();
+    applyCollapseState();
     applyColumnPrefs();
+    applyAllFilters();
 });
 
 /* Re-apply after HTMX swaps */
 document.addEventListener('htmx:afterSwap', function(e) {
     if (e.detail.target.id === 'containers-section') {
         applyColumnPrefs();
+        applyFilter('containers');
+    }
+    if (e.detail.target.id === 'vms-section') {
+        applyFilter('vms');
     }
 });
 </script>

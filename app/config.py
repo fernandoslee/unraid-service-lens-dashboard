@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     auth_enabled: bool = False
     auth_username: str = "admin"
     auth_password: str = ""
+    session_secret_key: str = ""
+    session_max_age: int = 86400  # seconds (default: 1 day)
 
     @property
     def is_configured(self) -> bool:

@@ -1,5 +1,7 @@
 import logging
+import secrets
 
+import bcrypt
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -11,18 +13,75 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MIN_PASSWORD_LENGTH = 8
+
 
 @router.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
     settings = get_settings()
-    if settings.is_configured:
+
+    # Both configured → go to dashboard
+    if settings.is_auth_configured and settings.is_configured:
         return RedirectResponse(url="/", status_code=302)
+
+    # Step 1: Create account (no auth yet)
+    if not settings.is_auth_configured:
+        return templates.TemplateResponse("setup.html", {
+            "request": request,
+            "step": 1,
+            "error": None,
+            "username": "admin",
+        })
+
+    # Step 2: Connect to Unraid (auth done, no connection)
     return templates.TemplateResponse("setup.html", {
         "request": request,
+        "step": 2,
         "error": None,
         "host": "",
         "api_key": "",
     })
+
+
+@router.post("/setup/credentials", response_class=HTMLResponse)
+async def setup_credentials(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+):
+    username = username.strip()
+    error = None
+
+    if not username:
+        error = "Username is required."
+    elif len(password) < MIN_PASSWORD_LENGTH:
+        error = f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    elif password != password_confirm:
+        error = "Passwords do not match."
+
+    if error:
+        return templates.TemplateResponse("setup.html", {
+            "request": request,
+            "step": 1,
+            "error": error,
+            "username": username,
+        })
+
+    # Hash password and generate session secret
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    session_secret = secrets.token_hex(32)
+
+    env_path = get_settings().data_dir / ".env"
+    write_env(env_path, {
+        "AUTH_ENABLED": "true",
+        "AUTH_USERNAME": username,
+        "AUTH_PASSWORD": hashed,
+        "SESSION_SECRET_KEY": session_secret,
+    })
+    get_settings.cache_clear()
+
+    return RedirectResponse(url="/setup", status_code=302)
 
 
 @router.post("/setup", response_class=HTMLResponse)
@@ -62,6 +121,7 @@ async def setup_submit(
     if error:
         return templates.TemplateResponse("setup.html", {
             "request": request,
+            "step": 2,
             "error": error,
             "host": host,
             "api_key": api_key,

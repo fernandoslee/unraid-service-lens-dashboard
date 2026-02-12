@@ -189,20 +189,31 @@ class TestAddress:
 # --- port_list ---
 
 class TestPortList:
-    def test_single_port(self):
-        c = _container(ports=[{"privatePort": 80, "publicPort": 8080}])
-        assert c.port_list == "8080:80"
+    def test_web_ui_port(self):
+        """When web_ui_url is set, show just its port."""
+        c = _container(
+            web_ui_url="http://192.168.50.177:8080/",
+            ports=[
+                {"privatePort": 80, "publicPort": 8080},
+                {"privatePort": 443, "publicPort": 8443},
+            ],
+        )
+        assert c.port_list == "8080"
 
-    def test_multiple_ports(self):
+    def test_single_port_no_webui(self):
+        c = _container(ports=[{"privatePort": 80, "publicPort": 8080}])
+        assert c.port_list == "8080"
+
+    def test_multiple_ports_no_webui(self):
         c = _container(ports=[
             {"privatePort": 80, "publicPort": 8080},
             {"privatePort": 443, "publicPort": 8443},
         ])
-        assert c.port_list == "8080:80, 8443:443"
+        assert c.port_list == "8080, 8443"
 
-    def test_private_only(self):
+    def test_private_only_no_webui(self):
         c = _container(ports=[{"privatePort": 80}])
-        assert c.port_list == "80"
+        assert c.port_list == ""
 
     def test_empty(self):
         c = _container(ports=[])

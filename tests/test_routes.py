@@ -1,9 +1,9 @@
 """Integration tests for routes using FastAPI TestClient."""
 
-import base64
-
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+from tests.conftest import TEST_PASSWORD
 
 
 # --- Dashboard ---
@@ -27,19 +27,61 @@ async def test_dashboard_redirects_when_unconfigured(client_unconfigured):
     assert "/setup" in resp.headers["location"]
 
 
-# --- Setup ---
+# --- Setup Wizard ---
 
 @pytest.mark.asyncio
-async def test_setup_page_returns_200_when_unconfigured(client_unconfigured):
+async def test_setup_step1_shown_when_fresh(client_unconfigured):
     resp = await client_unconfigured.get("/setup")
     assert resp.status_code == 200
-    assert "Setup" in resp.text or "setup" in resp.text.lower()
+    assert "Create Your Account" in resp.text
+    assert "/setup/credentials" in resp.text
 
 @pytest.mark.asyncio
-async def test_setup_redirects_when_configured(client):
-    resp = await client.get("/setup", follow_redirects=False)
+async def test_setup_step2_shown_after_auth(client_auth_only):
+    resp = await client_auth_only.get("/setup")
+    assert resp.status_code == 200
+    assert "Connect to Unraid" in resp.text
+    assert "Complete Setup" in resp.text
+
+@pytest.mark.asyncio
+async def test_setup_redirects_when_fully_configured(client_with_auth):
+    # Must log in first to access /setup (session auth)
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    resp = await client_with_auth.get("/setup", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/"
+
+@pytest.mark.asyncio
+async def test_setup_credentials_passwords_must_match(client_unconfigured):
+    resp = await client_unconfigured.post("/setup/credentials", data={
+        "username": "admin",
+        "password": "password123",
+        "password_confirm": "different123",
+    })
+    assert resp.status_code == 200
+    assert "do not match" in resp.text
+
+@pytest.mark.asyncio
+async def test_setup_credentials_password_min_length(client_unconfigured):
+    resp = await client_unconfigured.post("/setup/credentials", data={
+        "username": "admin",
+        "password": "short",
+        "password_confirm": "short",
+    })
+    assert resp.status_code == 200
+    assert "at least 8" in resp.text
+
+@pytest.mark.asyncio
+async def test_setup_credentials_username_required(client_unconfigured):
+    resp = await client_unconfigured.post("/setup/credentials", data={
+        "username": "   ",
+        "password": "password123",
+        "password_confirm": "password123",
+    })
+    assert resp.status_code == 200
+    assert "required" in resp.text.lower()
 
 
 # --- Settings ---
@@ -82,7 +124,7 @@ async def test_api_plugins(client):
 async def test_api_system(client):
     resp = await client.get("/api/system")
     assert resp.status_code == 200
-    assert "tower" in resp.text
+    assert "CPU" in resp.text
 
 @pytest.mark.asyncio
 async def test_api_health(client):
@@ -117,33 +159,85 @@ async def test_container_restart(client, mock_service):
     mock_service.restart_container.assert_awaited_once_with("abc123:def456")
 
 
-# --- Auth Middleware ---
+# --- Session Auth ---
 
 @pytest.mark.asyncio
-async def test_auth_blocks_unauthenticated(client_with_auth):
-    resp = await client_with_auth.get("/?view=cards")
-    assert resp.status_code == 401
-    assert "WWW-Authenticate" in resp.headers
+async def test_auth_redirects_to_login(client_with_auth):
+    resp = await client_with_auth.get("/?view=cards", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["location"]
 
 @pytest.mark.asyncio
-async def test_auth_allows_valid_credentials(client_with_auth):
-    creds = base64.b64encode(b"admin:secret123").decode()
-    resp = await client_with_auth.get("/?view=cards", headers={"Authorization": f"Basic {creds}"})
+async def test_login_page_renders(client_with_auth):
+    resp = await client_with_auth.get("/login")
     assert resp.status_code == 200
+    assert "Login" in resp.text
+    assert "Sign In" in resp.text
 
 @pytest.mark.asyncio
-async def test_auth_rejects_wrong_password(client_with_auth):
-    creds = base64.b64encode(b"admin:wrong").decode()
-    resp = await client_with_auth.get("/?view=cards", headers={"Authorization": f"Basic {creds}"})
-    assert resp.status_code == 401
+async def test_login_success_sets_session(client_with_auth):
+    resp = await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    }, follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/"
+    # Session cookie should be set
+    assert "session" in resp.headers.get("set-cookie", "").lower()
 
 @pytest.mark.asyncio
-async def test_auth_rejects_wrong_username(client_with_auth):
-    creds = base64.b64encode(b"hacker:secret123").decode()
-    resp = await client_with_auth.get("/?view=cards", headers={"Authorization": f"Basic {creds}"})
-    assert resp.status_code == 401
+async def test_login_wrong_password(client_with_auth):
+    resp = await client_with_auth.post("/login", data={
+        "username": "admin", "password": "wrongpassword",
+    })
+    assert resp.status_code == 200
+    assert "Invalid" in resp.text
+
+@pytest.mark.asyncio
+async def test_login_wrong_username(client_with_auth):
+    resp = await client_with_auth.post("/login", data={
+        "username": "hacker", "password": TEST_PASSWORD,
+    })
+    assert resp.status_code == 200
+    assert "Invalid" in resp.text
+
+@pytest.mark.asyncio
+async def test_authenticated_access_with_session(client_with_auth):
+    # Log in first
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    # Now access dashboard — session cookie persists in client
+    resp = await client_with_auth.get("/?view=cards")
+    assert resp.status_code == 200
+    assert "Containers" in resp.text
+
+@pytest.mark.asyncio
+async def test_logout_clears_session(client_with_auth):
+    # Log in
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    # Logout
+    resp = await client_with_auth.post("/logout", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["location"]
+    # Dashboard should redirect to login now
+    resp = await client_with_auth.get("/", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["location"]
 
 @pytest.mark.asyncio
 async def test_auth_allows_static_files(client_with_auth):
     resp = await client_with_auth.get("/static/css/app.css")
     assert resp.status_code == 200
+
+@pytest.mark.asyncio
+async def test_login_redirects_when_already_authenticated(client_with_auth):
+    # Log in
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    # Visit login page — should redirect to dashboard
+    resp = await client_with_auth.get("/login", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/"

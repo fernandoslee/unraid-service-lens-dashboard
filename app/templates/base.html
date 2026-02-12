@@ -18,24 +18,31 @@
     <script src="/static/js/htmx.min.js"></script>
 </head>
 <body>
-    <header class="container">
-        <nav>
-            <ul>
-                <li><strong>Services Indexer</strong></li>
-            </ul>
-            <ul>
-                <li>
-                    <span id="connection-status"
-                          hx-get="/api/health"
-                          hx-trigger="every 30s"
-                          hx-swap="innerHTML">
-                        {% block header_status %}{% endblock %}
-                    </span>
-                </li>
-                <li>{% block nav_icon %}<a href="/settings" class="nav-icon" title="Settings">&#9881;</a>{% endblock %}</li>
-            </ul>
-        </nav>
-    </header>
+    {% include "partials/icons.svg" %}
+    <div class="container top-bar">
+        <div class="top-bar-left">
+            <strong>Services Indexer</strong>
+            {% block top_bar_stats %}{% endblock %}
+        </div>
+        <div class="top-bar-right">
+            <span id="connection-status"
+                  hx-get="/api/health"
+                  hx-trigger="every 30s"
+                  hx-swap="innerHTML">
+                {% block header_status %}{% endblock %}
+            </span>
+            {% block nav_icons %}
+            <a href="/settings" class="nav-icon" title="Settings"><svg class="icon"><use href="#i-settings"/></svg></a>
+            {% endblock %}
+            {% block nav_user %}
+            {% if request.session.get("authenticated") %}
+            <span class="nav-username">{{ request.session.get("username", "") }}</span>
+            <a href="#" class="nav-logout-btn" title="Logout" onclick="document.getElementById('logout-form').submit();return false;"><svg class="icon"><use href="#i-log-out"/></svg></a>
+            <form id="logout-form" method="post" action="/logout" style="display:none"></form>
+            {% endif %}
+            {% endblock %}
+        </div>
+    </div>
     <main class="container">
         {% block content %}{% endblock %}
     </main>

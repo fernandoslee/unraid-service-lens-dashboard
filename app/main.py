@@ -47,9 +47,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Local Network Services Indexer", lifespan=lifespan)
 
-from app.middleware import BasicAuthMiddleware  # noqa: E402
+import secrets  # noqa: E402
 
-app.add_middleware(BasicAuthMiddleware, get_settings_fn=get_settings)
+from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
+
+from app.middleware import SessionAuthMiddleware  # noqa: E402
+
+# Session auth middleware (checks session, redirects to /login)
+app.add_middleware(SessionAuthMiddleware, get_settings_fn=get_settings)
+
+# Starlette session middleware (signed cookie)
+_settings = get_settings()
+_secret = _settings.session_secret_key or secrets.token_hex(32)
+app.add_middleware(SessionMiddleware, secret_key=_secret, max_age=_settings.session_max_age)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
@@ -84,9 +94,10 @@ def format_uptime(boot_time: datetime | None) -> str:
 templates.env.filters["format_bytes"] = format_bytes
 templates.env.filters["format_uptime"] = format_uptime
 
-from app.routers import api, dashboard, settings, setup  # noqa: E402
+from app.routers import api, auth, dashboard, settings, setup  # noqa: E402
 
 app.include_router(dashboard.router)
 app.include_router(api.router)
 app.include_router(setup.router)
 app.include_router(settings.router)
+app.include_router(auth.router)

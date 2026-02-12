@@ -1,18 +1,15 @@
-import base64
-import secrets
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 
 
-class BasicAuthMiddleware(BaseHTTPMiddleware):
-    """Optional HTTP Basic Auth. Skips auth for setup (when unconfigured) and health checks."""
+class SessionAuthMiddleware(BaseHTTPMiddleware):
+    """Session-based auth. Redirects unauthenticated users to /login."""
 
     # Paths that never require auth
-    PUBLIC_PATHS = {"/api/ping"}
+    PUBLIC_PATHS = {"/api/ping", "/login", "/logout"}
     # Paths that skip auth when app is not yet configured
-    SETUP_PATHS = {"/setup"}
+    SETUP_PATHS = {"/setup", "/setup/credentials"}
     # Static files prefix
     STATIC_PREFIX = "/static/"
 
@@ -36,22 +33,11 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         if path in self.SETUP_PATHS and not settings.is_configured:
             return await call_next(request)
 
-        # Check Authorization header
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Basic "):
-            try:
-                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-                username, password = decoded.split(":", 1)
-                if (
-                    secrets.compare_digest(username, settings.auth_username)
-                    and secrets.compare_digest(password, settings.auth_password)
-                ):
-                    return await call_next(request)
-            except Exception:
-                pass
+        # Check session
+        if request.session.get("authenticated"):
+            # Backfill username for sessions created before this field existed
+            if "username" not in request.session:
+                request.session["username"] = settings.auth_username
+            return await call_next(request)
 
-        return Response(
-            status_code=401,
-            headers={"WWW-Authenticate": 'Basic realm="Services Indexer"'},
-            content="Unauthorized",
-        )
+        return RedirectResponse(url="/login", status_code=302)

@@ -1,5 +1,6 @@
 import logging
 
+import bcrypt
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
@@ -31,6 +32,7 @@ def _settings_context(request, settings=None, **overrides):
         "auth_enabled": settings.auth_enabled,
         "auth_username": settings.auth_username,
         "auth_has_password": bool(settings.auth_password),
+        "session_max_age": settings.session_max_age,
         "error": None,
         "success": None,
     }
@@ -132,17 +134,24 @@ async def settings_submit(
     )
 
 
+VALID_MAX_AGES = {3600, 86400, 604800, 2592000, 7776000, 31536000}
+
+
 @router.post("/settings/auth", response_class=HTMLResponse)
 async def settings_auth_submit(
     request: Request,
     auth_enabled: bool = Form(False),
     auth_username: str = Form("admin"),
     auth_password: str = Form(""),
+    session_max_age: int = Form(86400),
 ):
     settings = get_settings()
 
-    # Use existing password if none provided
-    effective_password = auth_password if auth_password else settings.auth_password
+    # Use existing password hash if none provided
+    if auth_password:
+        effective_password = bcrypt.hashpw(auth_password.encode(), bcrypt.gensalt()).decode()
+    else:
+        effective_password = settings.auth_password
 
     if auth_enabled and not effective_password:
         return templates.TemplateResponse(
@@ -150,16 +159,35 @@ async def settings_auth_submit(
             _settings_context(request, error="Password is required to enable authentication."),
         )
 
+    # Validate session duration
+    if session_max_age not in VALID_MAX_AGES:
+        session_max_age = 86400
+
     env_path = settings.data_dir / ".env"
     write_env(env_path, {
         "AUTH_ENABLED": "true" if auth_enabled else "false",
         "AUTH_USERNAME": auth_username.strip() or "admin",
         "AUTH_PASSWORD": effective_password,
+        "SESSION_MAX_AGE": str(session_max_age),
     })
 
     get_settings.cache_clear()
+
+    # Update live SessionMiddleware max_age
+    _update_session_max_age(request.app, session_max_age)
 
     return templates.TemplateResponse(
         "settings.html",
         _settings_context(request, success="Authentication settings saved."),
     )
+
+
+def _update_session_max_age(app, max_age: int):
+    """Walk the middleware stack and update SessionMiddleware's max_age."""
+    from starlette.middleware.sessions import SessionMiddleware
+    obj = getattr(app, "middleware_stack", None)
+    while obj is not None:
+        if isinstance(obj, SessionMiddleware):
+            obj.max_age = max_age
+            break
+        obj = getattr(obj, "app", None)

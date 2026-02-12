@@ -1,46 +1,14 @@
-{% if system_info or system_metrics %}
+{% if system_metrics %}
 <div class="system-bar" id="system-bar">
-    <div class="system-bar-summary">
-        {% if system_metrics %}
-        <small>CPU {{ "%.0f" | format(system_metrics.cpu_percent or 0) }}%</small>
-        <progress value="{{ system_metrics.cpu_percent or 0 }}" max="100"></progress>
-        <small>Mem {{ "%.0f" | format(system_metrics.memory_percent or 0) }}%</small>
-        <progress value="{{ system_metrics.memory_percent or 0 }}" max="100"></progress>
-        {% if system_metrics.cpu_temperature %}
-        <small>{{ "%.0f" | format(system_metrics.cpu_temperature) }}&deg;C</small>
-        {% endif %}
-        {% if system_metrics.uptime %}
-        <small class="dimmed">Up {{ system_metrics.uptime | format_uptime }}</small>
-        {% endif %}
-        {% endif %}
-        <span class="system-bar-toggle" onclick="toggleSystemDetails()" title="Toggle details">&#9662;</span>
-    </div>
-    <div class="system-bar-details" id="system-details" style="display:none">
-        {% if system_info %}
-        <div class="system-bar-item">
-            <small><strong>{{ system_info.hostname or "Unknown" }}</strong> {{ system_info.sw_version or "" }}</small>
-        </div>
-        {% if system_info.cpu_brand %}
-        <div class="system-bar-item">
-            <small>{{ system_info.cpu_brand }}</small>
-        </div>
-        {% endif %}
-        {% if system_info.cpu_cores %}
-        <div class="system-bar-item">
-            <small>{{ system_info.cpu_cores }}C/{{ system_info.cpu_threads }}T</small>
-        </div>
-        {% endif %}
-        {% if system_info.lan_ip %}
-        <div class="system-bar-item">
-            <small>{{ system_info.lan_ip }}</small>
-        </div>
-        {% endif %}
-        {% endif %}
-        {% if system_metrics and system_metrics.memory_total %}
-        <div class="system-bar-item">
-            <small>RAM {{ system_metrics.memory_used | format_bytes }}/{{ system_metrics.memory_total | format_bytes }}</small>
-        </div>
-        {% endif %}
-    </div>
+    <small>CPU {{ "%.0f" | format(system_metrics.cpu_percent or 0) }}%</small>
+    <progress value="{{ system_metrics.cpu_percent or 0 }}" max="100"></progress>
+    <small>Mem {{ "%.0f" | format(system_metrics.memory_percent or 0) }}%</small>
+    <progress value="{{ system_metrics.memory_percent or 0 }}" max="100"></progress>
+    {% if system_metrics.cpu_temperature %}
+    <small>{{ "%.0f" | format(system_metrics.cpu_temperature) }}&deg;C</small>
+    {% endif %}
+    {% if system_metrics.uptime %}
+    <small class="dimmed">Up {{ system_metrics.uptime | format_uptime }}</small>
+    {% endif %}
 </div>
 {% endif %}

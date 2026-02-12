@@ -2,16 +2,47 @@
 
 {% block title %}Setup{% endblock %}
 
+{% block nav_icons %}{% endblock %}
+{% block nav_user %}{% endblock %}
+
 {% block content %}
 <article>
-    <header><h2>Connect to Unraid Server</h2></header>
+    <header>
+        <div class="wizard-progress">
+            <span class="step {% if step == 1 %}active{% else %}complete{% endif %}">1. Account</span>
+            <span class="separator">&rarr;</span>
+            <span class="step {% if step == 2 %}active{% endif %}">2. Server</span>
+        </div>
+    </header>
+
     {% if error %}
     <p class="error-text">{{ error }}</p>
     {% endif %}
+
+    {% if step == 1 %}
+    <h2>Create Your Account</h2>
+    <p class="dimmed">These credentials protect access to the dashboard.</p>
+    <form method="post" action="/setup/credentials">
+        <label for="username">Username
+            <input type="text" id="username" name="username" value="{{ username }}"
+                   placeholder="admin" required autofocus>
+        </label>
+        <label for="password">Password
+            <input type="password" id="password" name="password"
+                   placeholder="Minimum 8 characters" required>
+        </label>
+        <label for="password_confirm">Confirm Password
+            <input type="password" id="password_confirm" name="password_confirm"
+                   placeholder="Re-enter your password" required>
+        </label>
+        <button type="submit">Continue</button>
+    </form>
+    {% elif step == 2 %}
+    <h2>Connect to Unraid Server</h2>
     <form method="post" action="/setup">
         <label for="host">Unraid Server Address
             <input type="text" id="host" name="host" value="{{ host }}"
-                   placeholder="tower.local or 192.168.1.100" required>
+                   placeholder="tower.local or 192.168.1.100" required autofocus>
         </label>
         <label for="api_key">API Key
             <input type="password" id="api_key" name="api_key" value="{{ api_key }}"
@@ -21,10 +52,11 @@
             <input type="checkbox" name="verify_ssl" role="switch">
             Verify SSL certificate
         </label>
-        <button type="submit">Test Connection & Save</button>
+        <button type="submit">Complete Setup</button>
     </form>
     <footer>
         <small>Create an API key in Unraid: Settings &rarr; Management Access &rarr; API Keys (ADMIN role required).</small>
     </footer>
+    {% endif %}
 </article>
 {% endblock %}

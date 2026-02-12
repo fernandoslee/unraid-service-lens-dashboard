@@ -2,7 +2,7 @@
 
 {% block title %}Settings{% endblock %}
 
-{% block nav_icon %}<a href="/" class="nav-icon" title="Home">&#8962;</a>{% endblock %}
+{% block nav_icons %}<a href="/" class="nav-icon" title="Home"><svg class="icon"><use href="#i-home"/></svg></a>{% endblock %}
 
 {% block content %}
 <article>
@@ -67,11 +67,6 @@
         <input type="checkbox" id="show-vms" role="switch"
                onchange="saveSetting('showVMs', this.checked)">
     </div>
-    <div class="settings-row">
-        <label for="show-plugins">Plugins</label>
-        <input type="checkbox" id="show-plugins" role="switch"
-               onchange="saveSetting('showPlugins', this.checked)">
-    </div>
 </article>
 
 <article>
@@ -96,6 +91,16 @@
             <input type="password" id="auth_password" name="auth_password"
                    placeholder="Set a password">
             {% endif %}
+        </label>
+        <label for="session_max_age">Session duration
+            <select id="session_max_age" name="session_max_age">
+                <option value="3600" {% if session_max_age == 3600 %}selected{% endif %}>1 hour</option>
+                <option value="86400" {% if session_max_age == 86400 %}selected{% endif %}>1 day</option>
+                <option value="604800" {% if session_max_age == 604800 %}selected{% endif %}>1 week</option>
+                <option value="2592000" {% if session_max_age == 2592000 %}selected{% endif %}>1 month</option>
+                <option value="7776000" {% if session_max_age == 7776000 %}selected{% endif %}>3 months</option>
+                <option value="31536000" {% if session_max_age == 31536000 %}selected{% endif %}>1 year</option>
+            </select>
         </label>
         <button type="submit">Save Authentication</button>
     </form>
@@ -129,7 +134,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('show-containers').checked = getSectionPref('showContainers');
     document.getElementById('show-vms').checked = getSectionPref('showVMs');
-    document.getElementById('show-plugins').checked = getSectionPref('showPlugins');
 });
 </script>
 {% endblock %}

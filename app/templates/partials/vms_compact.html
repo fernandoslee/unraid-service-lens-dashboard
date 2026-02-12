@@ -8,7 +8,7 @@
     </thead>
     <tbody>
         {% for vm in vms %}
-        <tr>
+        <tr data-running="{{ 'true' if vm.is_running else 'false' }}">
             <td class="compact-icon-cell">
                 <img src="/static/img/default-vm.svg" alt="" class="compact-icon">
             </td>

@@ -1,6 +1,7 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import bcrypt
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -33,10 +34,10 @@ def _patch_app_settings(app, settings):
             mw.kwargs["get_settings_fn"] = getter
 
     # If middleware_stack was already built, patch the live instance
-    from app.middleware import BasicAuthMiddleware
+    from app.middleware import SessionAuthMiddleware
     obj = getattr(app, "middleware_stack", None)
     while obj is not None:
-        if isinstance(obj, BasicAuthMiddleware):
+        if isinstance(obj, SessionAuthMiddleware):
             obj._get_settings = getter
             break
         obj = getattr(obj, "app", None)
@@ -49,6 +50,7 @@ def _patch_app_settings(app, settings):
         patch("app.config.get_settings", getter),
         patch("app.routers.setup.get_settings", getter),
         patch("app.routers.settings.get_settings", getter),
+        patch("app.routers.auth.get_settings", getter),
     ]
 
 
@@ -133,6 +135,10 @@ def configured_settings():
     )
 
 
+TEST_PASSWORD = "secret123"
+TEST_PASSWORD_HASH = bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode()
+
+
 @pytest.fixture
 def auth_settings():
     """Settings with auth enabled."""
@@ -143,9 +149,47 @@ def auth_settings():
         unraid_api_key="test-api-key-12345",
         auth_enabled=True,
         auth_username="admin",
-        auth_password="secret123",
+        auth_password=TEST_PASSWORD_HASH,
+        session_secret_key="test-session-secret-key-for-testing",
         data_dir="/tmp/test-data",
     )
+
+
+@pytest.fixture
+def auth_only_settings():
+    """Settings with auth configured but no Unraid connection."""
+    from app.config import Settings
+    return Settings(
+        _env_file="/dev/null",
+        unraid_host="",
+        unraid_api_key="",
+        auth_enabled=True,
+        auth_username="admin",
+        auth_password=TEST_PASSWORD_HASH,
+        session_secret_key="test-session-secret-key-for-testing",
+        data_dir="/tmp/test-data",
+    )
+
+
+@pytest.fixture
+def app_auth_only(auth_only_settings):
+    """App with auth configured but Unraid unconfigured (setup step 2)."""
+    from app.main import app
+    patches = _patch_app_settings(app, auth_only_settings)
+    with patches[0], patches[1], patches[2], patches[3]:
+        app.state.unraid_client = None
+        app.state.unraid_service = None
+        yield app
+
+
+@pytest.fixture
+async def client_auth_only(app_auth_only):
+    """Async HTTP client for auth-only configured app."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app_auth_only),
+        base_url="http://test",
+    ) as c:
+        yield c
 
 
 @pytest.fixture
@@ -153,7 +197,7 @@ def app_with_service(mock_service, configured_settings):
     """Create a test app with a mocked UnraidService."""
     from app.main import app
     patches = _patch_app_settings(app, configured_settings)
-    with patches[0], patches[1], patches[2]:
+    with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = MagicMock()
         app.state.unraid_service = mock_service
         yield app
@@ -164,7 +208,7 @@ def app_unconfigured(unconfigured_settings):
     """Create a test app with no UnraidService (unconfigured)."""
     from app.main import app
     patches = _patch_app_settings(app, unconfigured_settings)
-    with patches[0], patches[1], patches[2]:
+    with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = None
         app.state.unraid_service = None
         yield app
@@ -175,7 +219,7 @@ def app_with_auth(mock_service, auth_settings):
     """Create a test app with auth enabled."""
     from app.main import app
     patches = _patch_app_settings(app, auth_settings)
-    with patches[0], patches[1], patches[2]:
+    with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = MagicMock()
         app.state.unraid_service = mock_service
         yield app

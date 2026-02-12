@@ -146,15 +146,22 @@ class ContainerInfo:
 
     @property
     def port_list(self) -> str:
-        """Summarize port mappings."""
+        """Show the service port (from web UI URL) or fall back to all mappings."""
+        # If there's a web UI URL, show just its port
+        if self.web_ui_url:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(self.web_ui_url)
+                port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                return str(port)
+            except Exception:
+                pass
+        # No web UI — show public port mappings
         parts = []
         for p in self.ports:
             pub = p.get("publicPort")
-            priv = p.get("privatePort")
             if pub:
-                parts.append(f"{pub}:{priv}")
-            elif priv:
-                parts.append(str(priv))
+                parts.append(str(pub))
         return ", ".join(parts[:3]) + ("..." if len(parts) > 3 else "") if parts else ""
 
 
