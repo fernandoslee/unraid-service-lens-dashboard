@@ -26,7 +26,9 @@ def _patch_app_settings(app, settings):
     building the middleware stack on first request) AND potentially on an already-
     built middleware_stack instance.  We patch both to be safe.
     """
-    getter = lambda: settings  # noqa: E731
+    def getter():
+        return settings
+    getter.cache_clear = lambda: None  # stub for lru_cache compatibility
 
     # Patch user_middleware kwargs so newly built stacks use our getter
     for mw in app.user_middleware:

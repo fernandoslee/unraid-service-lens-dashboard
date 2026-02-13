@@ -8,7 +8,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
 
     # Paths that never require auth
     PUBLIC_PATHS = {"/api/ping", "/login", "/logout"}
-    # Paths that skip auth when app is not yet configured
+    # Paths that skip auth when app setup is incomplete
     SETUP_PATHS = {"/setup", "/setup/credentials"}
     # Static files prefix
     STATIC_PREFIX = "/static/"
@@ -23,13 +23,16 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
         if not settings.is_auth_configured:
             return await call_next(request)
 
-        path = request.url.path
+        # Normalize path: strip trailing slashes for consistent matching
+        path = request.url.path.rstrip("/") or "/"
 
         # Always allow public paths and static files
         if path in self.PUBLIC_PATHS or path.startswith(self.STATIC_PREFIX):
             return await call_next(request)
 
-        # Allow setup when app is not configured
+        # Allow setup paths only when Unraid connection is not yet configured
+        # (auth is already configured at this point, but the user needs to
+        # complete step 2 of the wizard)
         if path in self.SETUP_PATHS and not settings.is_configured:
             return await call_next(request)
 

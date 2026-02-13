@@ -1,4 +1,5 @@
 import logging
+import re
 import secrets
 
 import bcrypt
@@ -14,6 +15,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
+# Hostname or IP (with optional port), no schemes or paths
+_HOST_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+(:\d+)?$")
+
+
+def _validate_host(host: str) -> str | None:
+    """Return an error message if host is invalid, else None."""
+    host = host.strip()
+    if not host:
+        return "Server address is required."
+    if len(host) > 253:
+        return "Server address is too long."
+    if not _HOST_PATTERN.match(host):
+        return "Invalid server address. Use a hostname or IP (e.g., tower.local or 192.168.1.100)."
+    return None
 
 
 @router.get("/setup", response_class=HTMLResponse)
@@ -50,13 +67,21 @@ async def setup_credentials(
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
+    # Block if auth is already configured (prevents credential overwrite)
+    if get_settings().is_auth_configured:
+        return RedirectResponse(url="/", status_code=302)
+
     username = username.strip()
     error = None
 
     if not username:
         error = "Username is required."
+    elif len(username) > 64:
+        error = "Username is too long (max 64 characters)."
     elif len(password) < MIN_PASSWORD_LENGTH:
         error = f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    elif len(password) > MAX_PASSWORD_LENGTH:
+        error = f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
     elif password != password_confirm:
         error = "Passwords do not match."
 
@@ -81,7 +106,21 @@ async def setup_credentials(
     })
     get_settings.cache_clear()
 
+    # Update the live SessionMiddleware with the new secret key
+    _update_session_secret(request.app, session_secret)
+
     return RedirectResponse(url="/setup", status_code=302)
+
+
+def _update_session_secret(app, secret: str):
+    """Walk the middleware stack and update SessionMiddleware's secret key."""
+    from starlette.middleware.sessions import SessionMiddleware
+    obj = getattr(app, "middleware_stack", None)
+    while obj is not None:
+        if isinstance(obj, SessionMiddleware):
+            obj.session_handler.signer = obj.session_handler.signer.__class__(secret)
+            break
+        obj = getattr(obj, "app", None)
 
 
 @router.post("/setup", response_class=HTMLResponse)
@@ -100,6 +139,28 @@ async def setup_submit(
     )
 
     from app.services.unraid import UnraidService
+
+    host = host.strip()
+    api_key = api_key.strip()
+
+    host_error = _validate_host(host)
+    if host_error:
+        return templates.TemplateResponse("setup.html", {
+            "request": request,
+            "step": 2,
+            "error": host_error,
+            "host": host,
+            "api_key": "",
+        })
+
+    if len(api_key) > 256:
+        return templates.TemplateResponse("setup.html", {
+            "request": request,
+            "step": 2,
+            "error": "API key is too long.",
+            "host": host,
+            "api_key": "",
+        })
 
     error = None
     try:
@@ -124,7 +185,7 @@ async def setup_submit(
             "step": 2,
             "error": error,
             "host": host,
-            "api_key": api_key,
+            "api_key": "",  # Don't echo API key back to template
         })
 
     # Save configuration (preserves any existing auth settings)

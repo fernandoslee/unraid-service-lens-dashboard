@@ -263,6 +263,11 @@ def _resolve_webui_url(
         return str(private_port)
 
     url = re.sub(r"\[PORT:(\d+)\]", replace_port, url)
+
+    # Validate URL scheme to prevent javascript: or data: URIs
+    if not url.lower().startswith(("http://", "https://")):
+        return None
+
     return url
 
 

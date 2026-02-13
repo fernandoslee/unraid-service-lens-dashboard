@@ -59,7 +59,16 @@ app.add_middleware(SessionAuthMiddleware, get_settings_fn=get_settings)
 # Starlette session middleware (signed cookie)
 _settings = get_settings()
 _secret = _settings.session_secret_key or secrets.token_hex(32)
-app.add_middleware(SessionMiddleware, secret_key=_secret, max_age=_settings.session_max_age)
+if not _settings.session_secret_key:
+    logging.getLogger(__name__).warning(
+        "No SESSION_SECRET_KEY configured — using ephemeral key (sessions lost on restart)"
+    )
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_secret,
+    max_age=_settings.session_max_age,
+    same_site="lax",
+)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 

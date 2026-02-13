@@ -72,6 +72,13 @@
 <article>
     <header><h3>Authentication</h3></header>
     <form method="post" action="/settings/auth">
+        {% if auth_has_password %}
+        <label for="current_password">Current password
+            <input type="password" id="current_password" name="current_password"
+                   placeholder="Enter current password" required>
+        </label>
+        <hr>
+        {% endif %}
         <label>
             <input type="checkbox" name="auth_enabled" role="switch"
                    {% if auth_enabled %}checked{% endif %}>
@@ -81,7 +88,7 @@
             <input type="text" id="auth_username" name="auth_username"
                    value="{{ auth_username }}" placeholder="admin">
         </label>
-        <label for="auth_password">Password
+        <label for="auth_password">New password
             {% if auth_has_password %}
             <input type="password" id="auth_password" name="auth_password"
                    placeholder="••••••••"

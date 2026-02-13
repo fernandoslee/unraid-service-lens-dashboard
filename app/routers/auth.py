@@ -1,4 +1,8 @@
+import hmac
 import logging
+import secrets
+import time
+from collections import defaultdict
 
 import bcrypt
 from fastapi import APIRouter, Form, Request
@@ -11,13 +15,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MAX_PASSWORD_LENGTH = 128
+
+# Simple in-memory rate limiter: {ip: [timestamp, ...]}
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_RATE_LIMIT_WINDOW = 300  # 5 minutes
+_RATE_LIMIT_MAX = 10  # max attempts per window
+
+
+def _is_rate_limited(ip: str) -> bool:
+    """Check if an IP has exceeded the login attempt rate limit."""
+    now = time.monotonic()
+    attempts = _login_attempts[ip]
+    # Prune old entries
+    _login_attempts[ip] = [t for t in attempts if now - t < _RATE_LIMIT_WINDOW]
+    return len(_login_attempts[ip]) >= _RATE_LIMIT_MAX
+
+
+def _record_attempt(ip: str) -> None:
+    _login_attempts[ip].append(time.monotonic())
+
 
 def _verify_password(plain: str, hashed: str) -> bool:
     """Verify a password against a hash. Handles both bcrypt and legacy plaintext."""
     if hashed.startswith("$2b$") or hashed.startswith("$2a$"):
         return bcrypt.checkpw(plain.encode(), hashed.encode())
-    # Legacy plaintext — direct comparison
-    return plain == hashed
+    # Legacy plaintext — constant-time comparison
+    return hmac.compare_digest(plain, hashed)
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -41,12 +65,31 @@ async def login_submit(
     if not settings.is_auth_configured:
         return RedirectResponse(url="/", status_code=302)
 
-    valid = (
-        username == settings.auth_username
-        and _verify_password(password, settings.auth_password)
-    )
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Rate limiting
+    if _is_rate_limited(client_ip):
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Too many login attempts. Please try again later.",
+        })
+
+    # Enforce max password length to prevent bcrypt DoS
+    if len(password) > MAX_PASSWORD_LENGTH:
+        _record_attempt(client_ip)
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Invalid username or password.",
+        })
+
+    # Constant-time username comparison + password verification
+    # Always run both to prevent timing-based user enumeration
+    username_match = secrets.compare_digest(username, settings.auth_username)
+    password_match = _verify_password(password, settings.auth_password)
+    valid = username_match and password_match
 
     if not valid:
+        _record_attempt(client_ip)
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Invalid username or password.",
@@ -61,9 +104,11 @@ async def login_submit(
         get_settings.cache_clear()
         logger.info("Migrated plaintext password to bcrypt hash")
 
+    # Session regeneration: clear old session before setting authenticated
+    request.session.clear()
     request.session["authenticated"] = True
     request.session["username"] = username
-    logger.info("User '%s' logged in", username)
+    logger.info("User logged in successfully")
     return RedirectResponse(url="/", status_code=302)
 
 

@@ -1,4 +1,5 @@
 import logging
+import re
 
 import bcrypt
 from fastapi import APIRouter, Form, Request
@@ -11,6 +12,12 @@ from app.services.env_file import write_env
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
+# Hostname or IP (with optional port), no schemes or paths
+_HOST_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+(:\d+)?$")
 
 
 def _mask_key(key: str) -> str:
@@ -63,6 +70,20 @@ async def settings_submit(
     from app.services.unraid import UnraidService
 
     settings = get_settings()
+
+    host = host.strip()
+
+    # Validate host
+    if not host:
+        return templates.TemplateResponse(
+            "settings.html",
+            _settings_context(request, error="Server address is required."),
+        )
+    if len(host) > 253 or not _HOST_PATTERN.match(host):
+        return templates.TemplateResponse(
+            "settings.html",
+            _settings_context(request, error="Invalid server address. Use a hostname or IP."),
+        )
 
     # Use existing key if none provided
     effective_key = api_key.strip() if api_key.strip() else settings.unraid_api_key
@@ -137,15 +158,45 @@ async def settings_submit(
 VALID_MAX_AGES = {3600, 86400, 604800, 2592000, 7776000, 31536000}
 
 
+def _verify_password(plain: str, hashed: str) -> bool:
+    """Verify a password against a hash (bcrypt or legacy plaintext)."""
+    import hmac
+    if hashed.startswith("$2b$") or hashed.startswith("$2a$"):
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    return hmac.compare_digest(plain, hashed)
+
+
 @router.post("/settings/auth", response_class=HTMLResponse)
 async def settings_auth_submit(
     request: Request,
+    current_password: str = Form(""),
     auth_enabled: bool = Form(False),
     auth_username: str = Form("admin"),
     auth_password: str = Form(""),
     session_max_age: int = Form(86400),
 ):
     settings = get_settings()
+
+    # Require current password to make any auth changes
+    if settings.is_auth_configured:
+        if not current_password or not _verify_password(current_password, settings.auth_password):
+            return templates.TemplateResponse(
+                "settings.html",
+                _settings_context(request, error="Current password is incorrect."),
+            )
+
+    # Validate new password length
+    if auth_password:
+        if len(auth_password) < MIN_PASSWORD_LENGTH:
+            return templates.TemplateResponse(
+                "settings.html",
+                _settings_context(request, error=f"Password must be at least {MIN_PASSWORD_LENGTH} characters."),
+            )
+        if len(auth_password) > MAX_PASSWORD_LENGTH:
+            return templates.TemplateResponse(
+                "settings.html",
+                _settings_context(request, error=f"Password must be at most {MAX_PASSWORD_LENGTH} characters."),
+            )
 
     # Use existing password hash if none provided
     if auth_password:

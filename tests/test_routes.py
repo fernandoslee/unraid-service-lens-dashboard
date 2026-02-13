@@ -241,3 +241,107 @@ async def test_login_redirects_when_already_authenticated(client_with_auth):
     resp = await client_with_auth.get("/login", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/"
+
+
+# --- Security Hardening ---
+
+@pytest.mark.asyncio
+async def test_setup_credentials_blocked_after_auth_configured(client_with_auth):
+    """POST /setup/credentials should redirect if auth is already configured."""
+    # Must log in first
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    resp = await client_with_auth.post("/setup/credentials", data={
+        "username": "hacker",
+        "password": "newpassword123",
+        "password_confirm": "newpassword123",
+    }, follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/"
+
+@pytest.mark.asyncio
+async def test_settings_auth_requires_current_password(client_with_auth):
+    """POST /settings/auth should require correct current password."""
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    # Try without current password
+    resp = await client_with_auth.post("/settings/auth", data={
+        "auth_enabled": "on",
+        "auth_username": "admin",
+        "auth_password": "",
+        "session_max_age": "86400",
+    })
+    assert resp.status_code == 200
+    assert "Current password is incorrect" in resp.text
+
+@pytest.mark.asyncio
+async def test_settings_auth_wrong_current_password(client_with_auth):
+    """POST /settings/auth should reject wrong current password."""
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    resp = await client_with_auth.post("/settings/auth", data={
+        "current_password": "wrongpassword",
+        "auth_enabled": "on",
+        "auth_username": "admin",
+        "auth_password": "",
+        "session_max_age": "86400",
+    })
+    assert resp.status_code == 200
+    assert "Current password is incorrect" in resp.text
+
+@pytest.mark.asyncio
+async def test_settings_auth_correct_current_password(client_with_auth):
+    """POST /settings/auth should accept correct current password."""
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    resp = await client_with_auth.post("/settings/auth", data={
+        "current_password": TEST_PASSWORD,
+        "auth_enabled": "on",
+        "auth_username": "admin",
+        "auth_password": "",
+        "session_max_age": "86400",
+    })
+    assert resp.status_code == 200
+    assert "saved" in resp.text.lower()
+
+@pytest.mark.asyncio
+async def test_settings_auth_password_min_length(client_with_auth):
+    """POST /settings/auth should enforce minimum password length."""
+    await client_with_auth.post("/login", data={
+        "username": "admin", "password": TEST_PASSWORD,
+    })
+    resp = await client_with_auth.post("/settings/auth", data={
+        "current_password": TEST_PASSWORD,
+        "auth_enabled": "on",
+        "auth_username": "admin",
+        "auth_password": "short",
+        "session_max_age": "86400",
+    })
+    assert resp.status_code == 200
+    assert "at least 8" in resp.text
+
+@pytest.mark.asyncio
+async def test_setup_credentials_password_max_length(client_unconfigured):
+    """POST /setup/credentials should reject overly long passwords."""
+    resp = await client_unconfigured.post("/setup/credentials", data={
+        "username": "admin",
+        "password": "a" * 200,
+        "password_confirm": "a" * 200,
+    })
+    assert resp.status_code == 200
+    assert "at most 128" in resp.text
+
+@pytest.mark.asyncio
+async def test_setup_credentials_username_max_length(client_unconfigured):
+    """POST /setup/credentials should reject overly long usernames."""
+    resp = await client_unconfigured.post("/setup/credentials", data={
+        "username": "a" * 100,
+        "password": "password123",
+        "password_confirm": "password123",
+    })
+    assert resp.status_code == 200
+    assert "too long" in resp.text.lower()

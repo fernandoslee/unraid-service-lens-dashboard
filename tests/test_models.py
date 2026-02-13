@@ -1,4 +1,4 @@
-"""Unit tests for data models in app.services.unraid."""
+"""Unit tests for data models and service utilities."""
 
 import pytest
 
@@ -293,6 +293,19 @@ class TestResolveWebuiUrl:
         url = _resolve_webui_url("http://[IP]:80", "192.168.1.100", None, [], "container:abc123")
         assert url == "http://192.168.1.100:80"
 
+    def test_javascript_uri_rejected(self):
+        """javascript: URIs should be rejected to prevent XSS."""
+        url = _resolve_webui_url("javascript:alert(1)", "1.2.3.4", None, [], "bridge")
+        assert url is None
+
+    def test_data_uri_rejected(self):
+        url = _resolve_webui_url("data:text/html,<script>alert(1)</script>", "1.2.3.4", None, [], "bridge")
+        assert url is None
+
+    def test_https_accepted(self):
+        url = _resolve_webui_url("https://[IP]:443/app", "1.2.3.4", None, [], "bridge")
+        assert url == "https://1.2.3.4:443/app"
+
 
 # --- _humanize_plugin_name ---
 
@@ -308,3 +321,33 @@ class TestHumanizePluginName:
 
     def test_dotted_name(self):
         assert _humanize_plugin_name("unraid.fix-common-problems") == "Fix Common Problems"
+
+
+# --- env_file security ---
+
+class TestEnvFileSecurity:
+    def test_newline_injection_stripped(self, tmp_path):
+        from app.services.env_file import read_env, write_env
+
+        env_path = tmp_path / ".env"
+        write_env(env_path, {"KEY": "value\nINJECTED=evil"})
+        result = read_env(env_path)
+        assert "INJECTED" not in result
+        assert result["KEY"] == "valueINJECTED=evil"  # newline stripped, no injection
+
+    def test_carriage_return_stripped(self, tmp_path):
+        from app.services.env_file import read_env, write_env
+
+        env_path = tmp_path / ".env"
+        write_env(env_path, {"KEY": "value\r\nINJECTED=evil"})
+        result = read_env(env_path)
+        assert "INJECTED" not in result
+
+    def test_file_permissions(self, tmp_path):
+        import stat
+        from app.services.env_file import write_env
+
+        env_path = tmp_path / ".env"
+        write_env(env_path, {"KEY": "value"})
+        mode = stat.S_IMODE(env_path.stat().st_mode)
+        assert mode == 0o600
