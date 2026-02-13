@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.main import templates
+from app.services.docker import DockerService
 from app.services.env_file import write_env
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def _settings_context(request, settings=None, **overrides):
         "auth_username": settings.auth_username,
         "auth_has_password": bool(settings.auth_password),
         "session_max_age": settings.session_max_age,
+        "docker_socket_available": DockerService.is_available(),
         "error": None,
         "success": None,
     }
@@ -145,7 +147,7 @@ async def settings_submit(
 
         request.app.state.unraid_client = new_client
         request.app.state.unraid_service = UnraidService(
-            new_client, new_settings.cache_ttl_seconds
+            new_client, new_settings.cache_ttl_seconds, server_host=host
         )
         logger.info("Reconnected to Unraid at %s via settings", host)
 

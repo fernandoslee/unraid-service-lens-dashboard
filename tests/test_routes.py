@@ -93,6 +93,12 @@ async def test_settings_page_returns_200(client):
     assert "Server Connection" in resp.text
     assert "Authentication" in resp.text
 
+@pytest.mark.asyncio
+async def test_settings_shows_docker_access_section(client):
+    resp = await client.get("/settings")
+    assert resp.status_code == 200
+    assert "Docker Access" in resp.text
+
 
 # --- API Partials ---
 
@@ -136,6 +142,24 @@ async def test_api_not_connected(client_unconfigured):
     resp = await client_unconfigured.get("/api/containers")
     assert resp.status_code == 200
     assert "Not connected" in resp.text
+
+
+# --- Container Logs ---
+
+@pytest.mark.asyncio
+async def test_container_logs_with_docker_socket(client, mock_docker_service):
+    resp = await client.get("/api/containers/logs?id=abc123:def456")
+    assert resp.status_code == 200
+    assert "Container started" in resp.text
+    assert "Listening on port 8080" in resp.text
+    mock_docker_service.get_container_logs.assert_awaited_once_with("abc123:def456", tail=100)
+
+@pytest.mark.asyncio
+async def test_container_logs_without_docker_socket(client_unconfigured):
+    resp = await client_unconfigured.get("/api/containers/logs?id=abc123:def456")
+    assert resp.status_code == 200
+    assert "Docker socket not available" in resp.text
+    assert "docker-compose.yml" in resp.text
 
 
 # --- Container Actions ---

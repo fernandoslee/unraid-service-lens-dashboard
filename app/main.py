@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
+from app.services.docker import DockerService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,13 +35,18 @@ async def lifespan(app: FastAPI):
         )
         await client._create_session()
         app.state.unraid_client = client
-        app.state.unraid_service = UnraidService(client, settings.cache_ttl_seconds)
+        app.state.unraid_service = UnraidService(client, settings.cache_ttl_seconds, server_host=settings.unraid_host)
         logging.info("Connected to Unraid at %s", settings.unraid_host)
     else:
         app.state.unraid_client = None
         app.state.unraid_service = None
         logging.info("No Unraid connection configured — setup required")
+    # Docker socket for container logs
+    docker_service = DockerService.create()
+    app.state.docker_service = docker_service
     yield
+    if docker_service is not None:
+        docker_service.close()
     if getattr(app.state, "unraid_client", None) is not None:
         await app.state.unraid_client.close()
 

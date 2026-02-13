@@ -6,6 +6,9 @@ services:
       - "8080:8080"
     volumes:
       - services-indexer-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      - "999"  # Docker group GID (may vary by host)
     environment:
       - UNRAID_HOST=${UNRAID_HOST:-}
       - UNRAID_API_KEY=${UNRAID_API_KEY:-}

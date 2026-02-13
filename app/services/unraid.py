@@ -246,9 +246,11 @@ def _resolve_webui_url(
 
     url = webui_template
 
-    # macvlan (br0/br1) containers have their own LAN IP
+    # macvlan (br0/br1/etc.) containers have their own LAN IP
     # bridge and container-mode use the server IP
-    if network_mode.startswith("br") and container_ip:
+    # Note: "bridge" also starts with "br" so we must exclude it explicitly
+    is_macvlan = network_mode.startswith("br") and network_mode != "bridge"
+    if is_macvlan and container_ip:
         ip = container_ip
     else:
         ip = server_ip
@@ -268,6 +270,10 @@ def _resolve_webui_url(
     if not url.lower().startswith(("http://", "https://")):
         return None
 
+    # Strip API-only paths that aren't the actual web UI
+    # (e.g., Sonarr/Radarr templates end with /system/status which is an API endpoint)
+    url = re.sub(r"/system/status/?$", "/", url)
+
     return url
 
 
@@ -282,22 +288,33 @@ def _humanize_plugin_name(name: str) -> str:
 
 
 class UnraidService:
-    def __init__(self, client: UnraidClient, cache_ttl: int = 10):
+    def __init__(self, client: UnraidClient, cache_ttl: int = 10, server_host: str = ""):
         self.client = client
         self.cache_ttl = cache_ttl
         self._cache = CachedData()
+        self._server_host = server_host  # configured hostname (e.g., "tower.lan")
         self._server_ip: str | None = None
 
     def _cache_valid(self) -> bool:
         return (time.monotonic() - self._cache.last_fetched) < self.cache_ttl
 
     async def _get_server_ip(self) -> str:
+        """Get the server address for URL resolution.
+
+        Uses the configured hostname (e.g., tower.lan) when available,
+        falling back to the LAN IP from the API. Using the hostname avoids
+        Chrome's HTTPS-First mode blocking bare IP HTTP links.
+        """
         if self._server_ip is None:
-            try:
-                info = await self.client.get_server_info()
-                self._server_ip = info.lan_ip or "localhost"
-            except Exception:
-                self._server_ip = "localhost"
+            # Prefer configured hostname over API-returned IP
+            if self._server_host:
+                self._server_ip = self._server_host
+            else:
+                try:
+                    info = await self.client.get_server_info()
+                    self._server_ip = info.lan_ip or "localhost"
+                except Exception:
+                    self._server_ip = "localhost"
         return self._server_ip
 
     async def get_all_data(self) -> CachedData:
@@ -473,10 +490,6 @@ class UnraidService:
         result = await self.client.restart_container(container_id)
         self.invalidate_cache()
         return result
-
-    async def get_container_logs(self, container_id: str, tail: int = 100) -> list[dict]:
-        result = await self.client.get_container_logs(container_id, tail=tail)
-        return result.get("lines", [])
 
     async def test_connection(self) -> bool:
         return await self.client.test_connection()

@@ -3,8 +3,9 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from app.dependencies import get_unraid_service
+from app.dependencies import get_docker_service, get_unraid_service
 from app.main import templates
+from app.services.docker import DockerService
 from app.services.unraid import UnraidService
 
 logger = logging.getLogger(__name__)
@@ -147,14 +148,22 @@ async def container_logs(
     request: Request,
     id: str,
     tail: int = 100,
-    service: UnraidService | None = Depends(get_unraid_service),
+    docker_service: DockerService | None = Depends(get_docker_service),
 ):
-    if service is None:
-        return HTMLResponse("<p>Not connected.</p>", status_code=503)
+    if docker_service is None:
+        return templates.TemplateResponse("partials/container_logs.html", {
+            "request": request,
+            "lines": [],
+            "error": (
+                "Docker socket not available. "
+                "Mount it in docker-compose.yml: "
+                "/var/run/docker.sock:/var/run/docker.sock:ro"
+            ),
+        })
     error = None
     lines = []
     try:
-        lines = await service.get_container_logs(id, tail=tail)
+        lines = await docker_service.get_container_logs(id, tail=tail)
     except Exception as e:
         logger.error("Failed to fetch logs for %s: %s", id, e)
         error = str(e)

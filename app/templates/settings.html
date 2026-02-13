@@ -70,6 +70,19 @@
 </article>
 
 <article>
+    <header><h3>Docker Access</h3></header>
+    {% if docker_socket_available %}
+    <p style="color: #22c55e;">Docker socket detected</p>
+    <p class="dimmed"><small>Container logs are available via the Docker socket.</small></p>
+    {% else %}
+    <p class="error-text">Docker socket not detected</p>
+    <p class="dimmed"><small>To enable container logs, mount the Docker socket in your <code>docker-compose.yml</code>:</small></p>
+    <pre style="font-size:0.85em; margin-top:0.5rem"><code>volumes:
+  - /var/run/docker.sock:/var/run/docker.sock:ro</code></pre>
+    {% endif %}
+</article>
+
+<article>
     <header><h3>Authentication</h3></header>
     <form method="post" action="/settings/auth">
         {% if auth_has_password %}

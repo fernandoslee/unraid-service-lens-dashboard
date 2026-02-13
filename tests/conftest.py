@@ -109,7 +109,17 @@ def mock_service():
     service.start_container = AsyncMock(return_value={})
     service.stop_container = AsyncMock(return_value={})
     service.restart_container = AsyncMock(return_value={})
-    service.get_container_logs = AsyncMock(return_value=[])
+    return service
+
+
+@pytest.fixture
+def mock_docker_service():
+    """Create a mock DockerService that returns sample log data."""
+    service = AsyncMock()
+    service.get_container_logs = AsyncMock(return_value=[
+        {"timestamp": "2024-01-15 10:30:45", "message": "Container started"},
+        {"timestamp": "2024-01-15 10:30:46", "message": "Listening on port 8080"},
+    ])
     return service
 
 
@@ -181,6 +191,7 @@ def app_auth_only(auth_only_settings):
     with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = None
         app.state.unraid_service = None
+        app.state.docker_service = None
         yield app
 
 
@@ -195,13 +206,14 @@ async def client_auth_only(app_auth_only):
 
 
 @pytest.fixture
-def app_with_service(mock_service, configured_settings):
+def app_with_service(mock_service, mock_docker_service, configured_settings):
     """Create a test app with a mocked UnraidService."""
     from app.main import app
     patches = _patch_app_settings(app, configured_settings)
     with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = MagicMock()
         app.state.unraid_service = mock_service
+        app.state.docker_service = mock_docker_service
         yield app
 
 
@@ -213,17 +225,19 @@ def app_unconfigured(unconfigured_settings):
     with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = None
         app.state.unraid_service = None
+        app.state.docker_service = None
         yield app
 
 
 @pytest.fixture
-def app_with_auth(mock_service, auth_settings):
+def app_with_auth(mock_service, mock_docker_service, auth_settings):
     """Create a test app with auth enabled."""
     from app.main import app
     patches = _patch_app_settings(app, auth_settings)
     with patches[0], patches[1], patches[2], patches[3]:
         app.state.unraid_client = MagicMock()
         app.state.unraid_service = mock_service
+        app.state.docker_service = mock_docker_service
         yield app
 
 
