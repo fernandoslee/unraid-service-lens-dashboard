@@ -54,27 +54,15 @@ class TestParseLogLines:
 
 
 class TestContainerIdSplitting:
-    @pytest.mark.asyncio
-    async def test_colon_separated_uses_first_part(self):
-        """GraphQL ID format hash:hash — first part is Docker container ID."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        service = DockerService(MagicMock())
-        service._fetch_logs = MagicMock(return_value="2024-01-01T00:00:00Z test\n")
-
-        with patch.object(DockerService, "_fetch_logs", return_value="2024-01-01T00:00:00Z test\n"):
-            # We can't easily test the internal split without mocking to_thread,
-            # so test the static parsing and verify the split logic directly
-            pass
-
-        # Test the split logic directly
+    def test_colon_separated_uses_second_part(self):
+        """GraphQL ID format prefix:dockerid — second part is the Docker container ID."""
         container_id = "abc123:def456"
-        docker_id = container_id.split(":")[0] if ":" in container_id else container_id
-        assert docker_id == "abc123"
+        docker_id = container_id.split(":", 1)[1] if ":" in container_id else container_id
+        assert docker_id == "def456"
 
     def test_plain_id_used_as_is(self):
         container_id = "abc123def456"
-        docker_id = container_id.split(":")[0] if ":" in container_id else container_id
+        docker_id = container_id.split(":", 1)[1] if ":" in container_id else container_id
         assert docker_id == "abc123def456"
 
 

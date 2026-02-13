@@ -114,11 +114,12 @@ async def setup_credentials(
 
 def _update_session_secret(app, secret: str):
     """Walk the middleware stack and update SessionMiddleware's secret key."""
+    import itsdangerous
     from starlette.middleware.sessions import SessionMiddleware
     obj = getattr(app, "middleware_stack", None)
     while obj is not None:
         if isinstance(obj, SessionMiddleware):
-            obj.session_handler.signer = obj.session_handler.signer.__class__(secret)
+            obj.signer = itsdangerous.TimestampSigner(secret)
             break
         obj = getattr(obj, "app", None)
 

@@ -1,9 +1,12 @@
 .git
 .env
-__pycache__
+**/__pycache__
 *.pyc
 .venv
 .claude
 CLAUDE.md
 poc/
 data/
+tests/
+*.md
+.pytest_cache/

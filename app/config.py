@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Local Network Services Indexer"
+    app_name: str = "Unraid Service Lens Dashboard"
     unraid_host: str = ""
     unraid_api_key: str = ""
     unraid_verify_ssl: bool = False

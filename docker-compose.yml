@@ -1,14 +1,12 @@
 services:
-  services-indexer:
+  service-lens:
     build: .
-    container_name: services-indexer
+    container_name: service-lens
     ports:
       - "8080:8080"
     volumes:
-      - services-indexer-data:/app/data
+      - service-lens-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    group_add:
-      - "999"  # Docker group GID (may vary by host)
     environment:
       - UNRAID_HOST=${UNRAID_HOST:-}
       - UNRAID_API_KEY=${UNRAID_API_KEY:-}
@@ -16,4 +14,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  services-indexer-data:
+  service-lens-data:

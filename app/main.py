@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
         await app.state.unraid_client.close()
 
 
-app = FastAPI(title="Local Network Services Indexer", lifespan=lifespan)
+app = FastAPI(title="Unraid Service Lens Dashboard", lifespan=lifespan)
 
 import secrets  # noqa: E402
 

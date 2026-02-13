@@ -35,10 +35,10 @@ class DockerService:
     async def get_container_logs(self, container_id: str, tail: int = 100) -> list[dict]:
         """Fetch recent log lines from a container.
 
-        The GraphQL container ID format is ``hash:hash`` — the first part
-        is the Docker container ID.
+        The GraphQL container ID format is ``prefix:dockerid`` — the second
+        part is the Docker container ID.
         """
-        docker_id = container_id.split(":")[0] if ":" in container_id else container_id
+        docker_id = container_id.split(":", 1)[1] if ":" in container_id else container_id
         raw = await asyncio.to_thread(self._fetch_logs, docker_id, tail)
         return self._parse_log_lines(raw)
 
