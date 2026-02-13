@@ -31,7 +31,7 @@ Tired of not remembering the hostnames, IPs, and ports of all your self-hosted s
 ```yaml
 services:
   service-lens:
-    image: ghcr.io/fernandoslee/service-lens:latest
+    image: ghcr.io/fernandoslee/unraid-service-lens-dashboard:latest
     container_name: service-lens
     ports:
       - "8080:8080"
@@ -59,7 +59,7 @@ docker run -d \
   -v service-lens-data:/app/data \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   --restart unless-stopped \
-  ghcr.io/fernandoslee/service-lens:latest
+  ghcr.io/fernandoslee/unraid-service-lens-dashboard:latest
 ```
 
 ## Setup
