@@ -1,4 +1,4 @@
-# Service Lens
+# Unraid Service Lens
 
 Tired of not remembering the hostnames, IPs, and ports of all your self-hosted services? Find the Unraid GUI too cramped to use as a daily launcher? Service Lens is a lightweight dashboard that auto-discovers every Docker container and VM on your Unraid server and puts them all in one clean, clickable page — no manual configuration, no fluff.
 
